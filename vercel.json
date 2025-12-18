@@ -1,0 +1,21 @@
+{
+  "builds": [
+    {
+      "src": "src/client/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://your-railway-app.railway.app/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/src/client/dist/$1"
+    }
+  ]
+}
