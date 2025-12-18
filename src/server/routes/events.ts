@@ -8,6 +8,7 @@ import { EmailService } from '../services/EmailService';
 import { NotificationService } from '../services/NotificationService';
 import { authenticateToken, requireOrganizer } from '../middleware/auth';
 import { validateEventCreation } from '../middleware/validation';
+import { cacheMiddleware } from '../services/CacheService';
 
 const router = Router();
 
@@ -21,18 +22,18 @@ const eventService = new EventService(eventRepository, userService, notification
 const eventController = new EventController(eventService);
 
 // Public routes - specific routes must come before parameterized routes
-router.get('/search', (req: Request, res: Response) => eventController.searchEvents(req, res));
+router.get('/search', cacheMiddleware(300), (req: Request, res: Response) => eventController.searchEvents(req, res));
 
 // Use search functionality for the root route as a workaround
-router.get('/', (req: Request, res: Response) => {
+router.get('/', cacheMiddleware(300), (req: Request, res: Response) => {
   // Redirect to search with empty query to get all events
   req.query = { ...req.query }; // Preserve existing query params
   eventController.searchEvents(req, res);
 });
 
 // Parameterized routes must come after specific routes
-router.get('/:id/capacity', (req: Request, res: Response) => eventController.getEventCapacity(req, res));
-router.get('/:id', (req: Request, res: Response) => eventController.getEvent(req, res));
+router.get('/:id/capacity', cacheMiddleware(60), (req: Request, res: Response) => eventController.getEventCapacity(req, res));
+router.get('/:id', cacheMiddleware(600), (req: Request, res: Response) => eventController.getEvent(req, res));
 
 // Protected routes
 router.post('/', authenticateToken, requireOrganizer, validateEventCreation, (req: Request, res: Response) => eventController.createEvent(req, res));

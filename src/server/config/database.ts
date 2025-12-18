@@ -270,6 +270,19 @@ async function runMigrations(): Promise<void> {
       );
     `);
 
+    // Create refresh tokens table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS refresh_tokens (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token VARCHAR(255) NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        revoked_at TIMESTAMP,
+        is_revoked BOOLEAN DEFAULT FALSE
+      );
+    `);
+
     // Create indexes for better performance
     await client.query(`
       CREATE INDEX IF NOT EXISTS idx_events_organizer ON events(organizer_id);
@@ -280,6 +293,9 @@ async function runMigrations(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_registrations_user ON registrations(user_id);
       CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
       CREATE INDEX IF NOT EXISTS idx_reviews_event ON reviews(event_id);
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
+      CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at);
     `);
 
     console.log('Database migrations completed successfully');
