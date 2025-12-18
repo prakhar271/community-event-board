@@ -62,8 +62,8 @@ databases:
   # PostgreSQL Database
   - name: community-events-db
     databaseName: community_events
-    plan: starter
+    plan: free
 
   # Redis Cache
   - name: community-events-redis
-    plan: starter
+    plan: free
