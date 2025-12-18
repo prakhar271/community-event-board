@@ -45,8 +45,9 @@ services:
         value: "100"
 
   # Frontend Static Site
-  - type: static
+  - type: web
     name: community-events-frontend
+    runtime: static
     buildCommand: cd src/client && npm ci && npm run build
     staticPublishPath: src/client/dist
     branch: main
