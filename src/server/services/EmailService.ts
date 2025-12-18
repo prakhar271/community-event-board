@@ -11,7 +11,7 @@ export class EmailService {
 
     if (smtpHost && smtpUser && smtpPass && smtpHost !== 'smtp.gmail.com' && smtpUser !== 'your-email@gmail.com') {
       // Use real SMTP configuration
-      this.transporter = nodemailer.createTransporter({
+      this.transporter = nodemailer.createTransport({
         host: smtpHost,
         port: parseInt(process.env.SMTP_PORT || '587'),
         secure: process.env.SMTP_PORT === '465', // true for 465, false for other ports
@@ -23,7 +23,7 @@ export class EmailService {
       console.log('📧 EmailService initialized with SMTP:', smtpHost);
     } else {
       // Use test transporter for development
-      this.transporter = nodemailer.createTransporter({
+      this.transporter = nodemailer.createTransport({
         streamTransport: true,
         newline: 'unix',
         buffer: true
