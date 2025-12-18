@@ -45,18 +45,14 @@ services:
         value: "100"
 
   # Frontend Static Site
-  - type: web
+  - type: static
     name: community-events-frontend
-    runtime: static
     buildCommand: cd src/client && npm ci && npm run build
     staticPublishPath: src/client/dist
     branch: main
     envVars:
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: community-events-api
-          property: host
+        value: https://community-events-api.onrender.com/api
 
 databases:
   # PostgreSQL Database
