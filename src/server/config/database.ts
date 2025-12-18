@@ -32,7 +32,7 @@ if (redisUrl && redisUrl !== 'undefined' && redisUrl.startsWith('redis://')) {
   // Only create Redis client if we have a valid URL
   redis = createClient({ url: redisUrl });
   
-  redis.on('error', (err) => {
+  redis.on('error', (err: Error) => {
     console.error('Redis Client Error', err);
   });
 
@@ -48,7 +48,7 @@ if (redisUrl && redisUrl !== 'undefined' && redisUrl.startsWith('redis://')) {
   try {
     redis = createClient({ url: 'redis://localhost:6379' });
     
-    redis.on('error', (err) => {
+    redis.on('error', (err: Error) => {
       console.warn('Redis development error (safe to ignore):', err);
     });
 
