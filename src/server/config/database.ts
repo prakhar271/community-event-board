@@ -24,35 +24,49 @@ const dbConfig: PoolConfig = process.env.DATABASE_URL
 
 export const db = new Pool(dbConfig);
 
-// Redis configuration - handle missing or invalid REDIS_URL
-let redisConfig: any;
+// Redis configuration - completely optional
 const redisUrl = process.env.REDIS_URL;
+let redis: any = null;
 
 if (redisUrl && redisUrl !== 'undefined' && redisUrl.startsWith('redis://')) {
-  redisConfig = { url: redisUrl };
-} else if (process.env.NODE_ENV === 'production') {
-  // In production without Redis, use a mock client
-  console.warn('⚠️ Redis URL not available in production, using mock client');
-  redisConfig = { socket: { host: 'localhost', port: 6379 } };
+  // Only create Redis client if we have a valid URL
+  redis = createClient({ url: redisUrl });
+  
+  redis.on('error', (err) => {
+    console.error('Redis Client Error', err);
+  });
+
+  redis.on('connect', () => {
+    console.log('✅ Connected to Redis');
+  });
+
+  redis.on('ready', () => {
+    console.log('✅ Redis client ready');
+  });
+} else if (process.env.NODE_ENV === 'development') {
+  // Only try localhost in development
+  try {
+    redis = createClient({ url: 'redis://localhost:6379' });
+    
+    redis.on('error', (err) => {
+      console.warn('Redis development error (safe to ignore):', err);
+    });
+
+    redis.on('connect', () => {
+      console.log('✅ Connected to Redis (development)');
+    });
+  } catch (error) {
+    console.warn('⚠️ Redis not available in development');
+    redis = null;
+  }
 } else {
-  // Development fallback
-  redisConfig = { url: 'redis://localhost:6379' };
+  console.log('⚠️ Redis not configured - running without cache');
+  redis = null;
 }
 
-export const redis = createClient(redisConfig);
+export { redis };
 
-redis.on('error', (err) => {
-  console.error('Redis Client Error', err);
-  // Don't crash the app if Redis fails
-});
 
-redis.on('connect', () => {
-  console.log('✅ Connected to Redis');
-});
-
-redis.on('ready', () => {
-  console.log('✅ Redis client ready');
-});
 
 // Database initialization
 export async function initializeDatabase(): Promise<void> {
@@ -67,17 +81,17 @@ export async function initializeDatabase(): Promise<void> {
     client.release();
     console.log('✅ Connected to PostgreSQL');
     
-    // Try to connect to Redis, but don't fail if it's not available
-    try {
-      await redis.connect();
-      console.log('✅ Connected to Redis');
-    } catch (redisError) {
-      console.warn('⚠️ Redis connection failed:', redisError);
-      if (process.env.NODE_ENV === 'production') {
-        console.warn('⚠️ Continuing without Redis in production');
-      } else {
-        console.warn('⚠️ Continuing without Redis in development');
+    // Try to connect to Redis only if client exists
+    if (redis) {
+      try {
+        await redis.connect();
+        console.log('✅ Connected to Redis');
+      } catch (redisError) {
+        console.warn('⚠️ Redis connection failed:', redisError);
+        console.warn('⚠️ Continuing without Redis');
       }
+    } else {
+      console.log('ℹ️ Redis not configured - continuing without cache');
     }
     
     // Run migrations
@@ -278,12 +292,14 @@ async function runMigrations(): Promise<void> {
 export async function closeDatabase(): Promise<void> {
   await db.end();
   
-  try {
-    if (redis.isOpen) {
-      await redis.quit();
+  if (redis) {
+    try {
+      if (redis.isOpen) {
+        await redis.quit();
+      }
+    } catch (error) {
+      console.warn('Redis disconnect error (safe to ignore):', error);
     }
-  } catch (error) {
-    console.warn('Redis disconnect error (safe to ignore):', error);
   }
   
   console.log('Database connections closed');
