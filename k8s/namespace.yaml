@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: community-events
+  labels:
+    app: community-event-board
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: community-events
+data:
+  NODE_ENV: "production"
+  PLATFORM_FEE_PERCENTAGE: "5"
+  FREE_PLAN_MAX_EVENTS: "3"
+  FREE_PLAN_MAX_ATTENDEES: "50"
+  PREMIUM_PLAN_PRICE: "29900"
+  PRO_PLAN_PRICE: "59900"
+  UPLOAD_DIR: "uploads"
+  MAX_FILE_SIZE: "5242880"
+  ALLOWED_IMAGE_TYPES: "image/jpeg,image/png,image/webp"
+  BCRYPT_ROUNDS: "12"
+  RATE_LIMIT_WINDOW_MS: "900000"
+  RATE_LIMIT_MAX_REQUESTS: "100"

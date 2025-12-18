@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: community-events-metrics
+  namespace: community-events
+spec:
+  selector:
+    matchLabels:
+      app: community-events-api
+  endpoints:
+  - port: http
+    path: /metrics
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard
+  namespace: community-events
+data:
+  dashboard.json: |
+    {
+      "dashboard": {
+        "title": "Community Events Dashboard",
+        "panels": [
+          {
+            "title": "API Response Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))"
+              }
+            ]
+          },
+          {
+            "title": "Active Users",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "active_users_total"
+              }
+            ]
+          },
+          {
+            "title": "Events Created",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(events_created_total[5m])"
+              }
+            ]
+          }
+        ]
+      }
+    }

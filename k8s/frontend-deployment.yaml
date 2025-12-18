@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: community-events-frontend
+  namespace: community-events
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: community-events-frontend
+  template:
+    metadata:
+      labels:
+        app: community-events-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: frontend-files
+          mountPath: /usr/share/nginx/html
+        - name: nginx-config
+          mountPath: /etc/nginx/conf.d
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      initContainers:
+      - name: build-frontend
+        image: node:18-alpine
+        workingDir: /app
+        command: ["/bin/sh"]
+        args:
+          - -c
+          - |
+            cd src/client
+            npm ci
+            npm run build
+            cp -r dist/* /shared/
+        volumeMounts:
+        - name: frontend-files
+          mountPath: /shared
+        - name: source-code
+          mountPath: /app
+      volumes:
+      - name: frontend-files
+        emptyDir: {}
+      - name: source-code
+        configMap:
+          name: source-code
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: community-events-frontend
+  namespace: community-events
+spec:
+  selector:
+    app: community-events-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
