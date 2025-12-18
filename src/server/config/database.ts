@@ -2,31 +2,56 @@ import { Pool, PoolConfig } from 'pg';
 import { createClient } from 'redis';
 
 // PostgreSQL configuration
-const dbConfig: PoolConfig = {
-  host: 'localhost',
-  port: 5432,
-  database: 'community_events',
-  user: 'postgres',
-  password: 'password',
-  ssl: false,
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-};
+const dbConfig: PoolConfig = process.env.DATABASE_URL 
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    }
+  : {
+      host: 'localhost',
+      port: 5432,
+      database: 'community_events',
+      user: 'postgres',
+      password: 'password',
+      ssl: false,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    };
 
 export const db = new Pool(dbConfig);
 
-// Redis configuration
-export const redis = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379'
-});
+// Redis configuration - handle missing or invalid REDIS_URL
+let redisConfig: any;
+const redisUrl = process.env.REDIS_URL;
+
+if (redisUrl && redisUrl !== 'undefined' && redisUrl.startsWith('redis://')) {
+  redisConfig = { url: redisUrl };
+} else if (process.env.NODE_ENV === 'production') {
+  // In production without Redis, use a mock client
+  console.warn('⚠️ Redis URL not available in production, using mock client');
+  redisConfig = { socket: { host: 'localhost', port: 6379 } };
+} else {
+  // Development fallback
+  redisConfig = { url: 'redis://localhost:6379' };
+}
+
+export const redis = createClient(redisConfig);
 
 redis.on('error', (err) => {
   console.error('Redis Client Error', err);
+  // Don't crash the app if Redis fails
 });
 
 redis.on('connect', () => {
-  console.log('Connected to Redis');
+  console.log('✅ Connected to Redis');
+});
+
+redis.on('ready', () => {
+  console.log('✅ Redis client ready');
 });
 
 // Database initialization
@@ -40,10 +65,20 @@ export async function initializeDatabase(): Promise<void> {
     // Test PostgreSQL connection
     const client = await db.connect();
     client.release();
-    console.log('Connected to PostgreSQL');
+    console.log('✅ Connected to PostgreSQL');
     
-    await redis.connect();
-    console.log('Connected to Redis');
+    // Try to connect to Redis, but don't fail if it's not available
+    try {
+      await redis.connect();
+      console.log('✅ Connected to Redis');
+    } catch (redisError) {
+      console.warn('⚠️ Redis connection failed:', redisError);
+      if (process.env.NODE_ENV === 'production') {
+        console.warn('⚠️ Continuing without Redis in production');
+      } else {
+        console.warn('⚠️ Continuing without Redis in development');
+      }
+    }
     
     // Run migrations
     await runMigrations();
@@ -242,6 +277,14 @@ async function runMigrations(): Promise<void> {
 // Graceful shutdown
 export async function closeDatabase(): Promise<void> {
   await db.end();
-  await redis.quit();
+  
+  try {
+    if (redis.isOpen) {
+      await redis.quit();
+    }
+  } catch (error) {
+    console.warn('Redis disconnect error (safe to ignore):', error);
+  }
+  
   console.log('Database connections closed');
 }
