@@ -21,13 +21,9 @@ import webhookRoutes from './routes/webhooks';
 
 // Import services
 import { performanceMiddleware, errorTracker } from './middleware/analytics';
-import { cacheService } from './services/CacheService';
 import { backgroundJobService } from './services/BackgroundJobService';
 import { RealTimeService } from './services/RealTimeService';
 import { TokenService } from './services/TokenService';
-
-// Load environment variables
-config();
 
 const app = express();
 const server = http.createServer(app);
@@ -78,7 +74,7 @@ app.use(loggingMiddleware);
 app.use(performanceMiddleware);
 
 // Health check endpoint
-app.get('/health', (req: express.Request, res: express.Response) => {
+app.get('/health', (_req: express.Request, res: express.Response) => {
   res.json({
     success: true,
     message: 'Community Event Board API is running',
@@ -110,7 +106,7 @@ app.use('*', (req: express.Request, res: express.Response) => {
 addSentryErrorHandler(app);
 
 // Global error handler
-app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((error: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Global error handler:', error);
   
   // Track error for monitoring

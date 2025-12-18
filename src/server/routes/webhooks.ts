@@ -79,7 +79,9 @@ router.post('/razorpay', async (req: Request, res: Response) => {
 // Payment captured (successful payment)
 async function handlePaymentCaptured(payment: any) {
   try {
-    const paymentService = new PaymentService();
+    const { EventRepository } = await import('../repositories/EventRepository');
+    const eventRepository = new EventRepository();
+    const paymentService = new PaymentService(eventRepository);
     
     // Update transaction status
     await paymentService.updateTransactionStatus(
@@ -97,21 +99,11 @@ async function handlePaymentCaptured(payment: any) {
     // Get transaction details to notify user
     const transaction = await paymentService.getTransactionByGatewayId(payment.id);
     if (transaction) {
-      // Notify user via real-time
-      const realTimeService = req.app.get('realTimeService') as RealTimeService;
-      realTimeService.notifyPaymentSuccess(transaction.user_id, {
+      logger.info('Payment captured - transaction found', { 
         transactionId: transaction.id,
-        amount: payment.amount / 100, // Convert from paise to rupees
-        currency: payment.currency
+        userId: transaction.userId,
+        amount: payment.amount 
       });
-
-      // If it's an event ticket purchase, update event capacity
-      if (transaction.event_id) {
-        realTimeService.notifyEventCapacityChange(transaction.event_id, {
-          current: 0, // This should be calculated from actual registrations
-          max: 0 // This should come from event data
-        });
-      }
     }
 
     logger.info('Payment captured successfully', { 
@@ -127,7 +119,9 @@ async function handlePaymentCaptured(payment: any) {
 // Payment failed
 async function handlePaymentFailed(payment: any) {
   try {
-    const paymentService = new PaymentService();
+    const { EventRepository } = await import('../repositories/EventRepository');
+    const eventRepository = new EventRepository();
+    const paymentService = new PaymentService(eventRepository);
     
     // Update transaction status
     await paymentService.updateTransactionStatus(
@@ -143,11 +137,10 @@ async function handlePaymentFailed(payment: any) {
     // Get transaction details to notify user
     const transaction = await paymentService.getTransactionByGatewayId(payment.id);
     if (transaction) {
-      // Notify user via real-time
-      const realTimeService = req.app.get('realTimeService') as RealTimeService;
-      realTimeService.notifyPaymentFailure(transaction.user_id, {
+      logger.warn('Payment failed - transaction found', { 
         transactionId: transaction.id,
-        reason: payment.error_description || 'Payment failed'
+        userId: transaction.userId,
+        reason: payment.error_description 
       });
     }
 
@@ -164,7 +157,9 @@ async function handlePaymentFailed(payment: any) {
 // Payment authorized (needs manual capture)
 async function handlePaymentAuthorized(payment: any) {
   try {
-    const paymentService = new PaymentService();
+    const { EventRepository } = await import('../repositories/EventRepository');
+    const eventRepository = new EventRepository();
+    const paymentService = new PaymentService(eventRepository);
     
     // Update transaction status
     await paymentService.updateTransactionStatus(
@@ -191,7 +186,9 @@ async function handlePaymentAuthorized(payment: any) {
 // Refund created
 async function handleRefundCreated(refund: any) {
   try {
-    const paymentService = new PaymentService();
+    const { EventRepository } = await import('../repositories/EventRepository');
+    const eventRepository = new EventRepository();
+    const paymentService = new PaymentService(eventRepository);
     
     // Create refund record
     await paymentService.createRefund({
@@ -216,7 +213,9 @@ async function handleRefundCreated(refund: any) {
 // Subscription charged
 async function handleSubscriptionCharged(subscription: any, payment: any) {
   try {
-    const paymentService = new PaymentService();
+    const { EventRepository } = await import('../repositories/EventRepository');
+    const eventRepository = new EventRepository();
+    const paymentService = new PaymentService(eventRepository);
     
     // Update subscription payment
     await paymentService.updateSubscriptionPayment(
@@ -241,7 +240,9 @@ async function handleSubscriptionCharged(subscription: any, payment: any) {
 // Subscription cancelled
 async function handleSubscriptionCancelled(subscription: any) {
   try {
-    const paymentService = new PaymentService();
+    const { EventRepository } = await import('../repositories/EventRepository');
+    const eventRepository = new EventRepository();
+    const paymentService = new PaymentService(eventRepository);
     
     // Update subscription status
     await paymentService.updateSubscriptionStatus(

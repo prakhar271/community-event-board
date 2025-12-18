@@ -415,6 +415,44 @@ export class PaymentService implements IPaymentService {
     return expectedSignature === signature;
   }
 
+  // Webhook integration methods
+  async updateTransactionStatus(paymentGatewayId: string, status: string, metadata?: any): Promise<void> {
+    // This would update the transaction in the database
+    // For now, just log the update
+    console.log(`Updating transaction status: ${paymentGatewayId} -> ${status}`, metadata);
+  }
+
+  async getTransactionByGatewayId(paymentGatewayId: string): Promise<Transaction | null> {
+    // This would fetch transaction from database by gateway ID
+    // For now, return a mock transaction
+    return new TransactionModel({
+      id: uuidv4(),
+      userId: 'mock-user-id',
+      eventId: 'mock-event-id',
+      type: TransactionType.TICKET,
+      amount: 50000, // 500 INR in paise
+      currency: 'INR',
+      status: TransactionStatus.PENDING,
+      paymentGatewayId,
+      createdAt: new Date()
+    });
+  }
+
+  async createRefund(refundData: any): Promise<void> {
+    // This would create a refund record in the database
+    console.log('Creating refund record:', refundData);
+  }
+
+  async updateSubscriptionPayment(subscriptionId: string, paymentId: string, status: string): Promise<void> {
+    // This would update subscription payment status
+    console.log(`Updating subscription payment: ${subscriptionId} -> ${paymentId} -> ${status}`);
+  }
+
+  async updateSubscriptionStatus(subscriptionId: string, status: string): Promise<void> {
+    // This would update subscription status in database
+    console.log(`Updating subscription status: ${subscriptionId} -> ${status}`);
+  }
+
   private getPlanId(planType: PlanType): string {
     // These would be actual Razorpay plan IDs
     const planIds = {
