@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { emailTemplates } from '../templates/emailTemplates';
 
 export class EmailService {
   private transporter: nodemailer.Transporter;
@@ -40,15 +41,7 @@ export class EmailService {
         from: process.env.FROM_EMAIL,
         to: email,
         subject: 'Verify Your Email - Community Event Board',
-        html: `
-          <h2>Welcome to Community Event Board!</h2>
-          <p>Hi ${name},</p>
-          <p>Please click the link below to verify your email address:</p>
-          <a href="${verificationUrl}" style="background-color: #4F46E5; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Verify Email</a>
-          <p>If the button doesn't work, copy and paste this URL into your browser:</p>
-          <p>${verificationUrl}</p>
-          <p>This link will expire in 24 hours.</p>
-        `
+        html: emailTemplates.verification(verificationUrl, name)
       };
       
       await this.transporter.sendMail(mailOptions);
