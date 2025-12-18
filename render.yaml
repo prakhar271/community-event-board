@@ -2,7 +2,7 @@ services:
   # Backend API Service
   - type: web
     name: community-events-api
-    env: docker
+    runtime: docker
     dockerfilePath: ./Dockerfile.api
     plan: starter
     region: oregon
@@ -47,7 +47,7 @@ services:
   # Frontend Static Site
   - type: web
     name: community-events-frontend
-    env: static
+    runtime: static
     buildCommand: cd src/client && npm ci && npm run build
     staticPublishPath: src/client/dist
     branch: main
@@ -62,7 +62,6 @@ databases:
   # PostgreSQL Database
   - name: community-events-db
     databaseName: community_events
-    user: postgres
     plan: starter
 
   # Redis Cache
