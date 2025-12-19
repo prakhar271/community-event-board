@@ -9,58 +9,12 @@ import {
 } from '@heroicons/react/24/outline';
 import { eventsApi } from '../services/api';
 import toast from 'react-hot-toast';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import {
+  validationResolvers,
+  type EventCreateInput,
+} from '../hooks/useValidation';
 
-// Frontend-specific event form schema
-const eventFormSchema = z
-  .object({
-    title: z
-      .string()
-      .min(3, 'Title must be at least 3 characters')
-      .max(200, 'Title must be less than 200 characters'),
-    description: z
-      .string()
-      .min(10, 'Description must be at least 10 characters')
-      .max(5000, 'Description must be less than 5000 characters'),
-    category: z.string().min(1, 'Category is required'),
-    location: z.object({
-      address: z.string().min(3, 'Address is required'),
-      venue: z.string().optional(),
-      city: z.string().min(1, 'City is required'),
-      state: z.string().min(1, 'State is required'),
-      country: z.string().min(1, 'Country is required'),
-    }),
-    schedule: z.object({
-      startDate: z.string().min(1, 'Start date is required'),
-      endDate: z.string().min(1, 'End date is required'),
-      timezone: z.string().default('Asia/Kolkata'),
-    }),
-    capacity: z.number().int().min(1).optional(),
-    registrationDeadline: z.string().optional(),
-    isPaid: z.boolean().default(false),
-    ticketPrice: z.number().min(1).optional(),
-    requirements: z.array(z.string()).optional(),
-    tags: z.array(z.string()).optional(),
-  })
-  .refine(
-    (data) =>
-      new Date(data.schedule.endDate) > new Date(data.schedule.startDate),
-    {
-      message: 'End date must be after start date',
-      path: ['schedule', 'endDate'],
-    }
-  )
-  .refine(
-    (data) =>
-      !data.isPaid || (data.isPaid && data.ticketPrice && data.ticketPrice > 0),
-    {
-      message: 'Paid events must have a ticket price greater than 0',
-      path: ['ticketPrice'],
-    }
-  );
-
-type EventFormData = z.infer<typeof eventFormSchema>;
+type EventFormData = EventCreateInput;
 
 const categories = [
   'cultural',
@@ -87,16 +41,25 @@ export const CreateEventPage: React.FC = () => {
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<EventFormData>({
-    resolver: zodResolver(eventFormSchema),
+  } = useForm({
+    resolver: validationResolvers.createEvent,
     defaultValues: {
       isPaid: false,
       schedule: {
         timezone: 'Asia/Kolkata',
+        startDate: '',
+        endDate: '',
       },
       location: {
         country: 'India',
+        venue: '',
+        address: '',
+        city: '',
+        state: '',
       },
+      registrationDeadline: '',
+      requirements: [],
+      tags: [],
     },
   });
 
@@ -124,7 +87,6 @@ export const CreateEventPage: React.FC = () => {
         data.isPaid && data.ticketPrice
           ? Math.round(data.ticketPrice * 100)
           : undefined, // Convert to paise
-      capacity: data.capacity || undefined,
       registrationDeadline: data.registrationDeadline
         ? new Date(data.registrationDeadline).toISOString()
         : undefined,
@@ -431,7 +393,7 @@ export const CreateEventPage: React.FC = () => {
                     onChange={(e) => setNewRequirement(e.target.value)}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Add a requirement..."
-                    onKeyPress={(e) =>
+                    onKeyDown={(e) =>
                       e.key === 'Enter' &&
                       (e.preventDefault(), addRequirement())
                     }
@@ -477,7 +439,7 @@ export const CreateEventPage: React.FC = () => {
                     onChange={(e) => setNewTag(e.target.value)}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Add a tag..."
-                    onKeyPress={(e) =>
+                    onKeyDown={(e) =>
                       e.key === 'Enter' && (e.preventDefault(), addTag())
                     }
                   />
