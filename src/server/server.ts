@@ -9,6 +9,7 @@ import { initializeDatabase, closeDatabase } from './config/database';
 import { env } from './config/env';
 import { logger, requestIdMiddleware, loggingMiddleware } from './config/logger';
 import { initializeSentry, addSentryErrorHandler } from './config/sentry';
+import { setupSwagger } from './config/swagger';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -24,6 +25,7 @@ import { performanceMiddleware, errorTracker } from './middleware/analytics';
 import { backgroundJobService } from './services/BackgroundJobService';
 import { RealTimeService } from './services/RealTimeService';
 import { TokenService } from './services/TokenService';
+import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app = express();
 const server = http.createServer(app);
@@ -73,6 +75,9 @@ app.use(loggingMiddleware);
 // Performance monitoring middleware
 app.use(performanceMiddleware);
 
+// Setup API documentation
+setupSwagger(app);
+
 // Health check endpoint
 app.get('/health', (_req: express.Request, res: express.Response) => {
   res.json({
@@ -94,32 +99,14 @@ app.use('/api/users', userRoutes);
 // Webhook routes (no auth required)
 app.use('/webhooks', webhookRoutes);
 
-// 404 handler
-app.use('*', (req: express.Request, res: express.Response) => {
-  res.status(404).json({
-    success: false,
-    error: 'Route not found'
-  });
-});
-
 // Sentry error handler (must be before other error handlers)
 addSentryErrorHandler(app);
 
-// Global error handler
-app.use((error: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Global error handler:', error);
-  
-  // Track error for monitoring
-  errorTracker(error, req);
-  
-  res.status(error.status || 500).json({
-    success: false,
-    error: process.env.NODE_ENV === 'production' 
-      ? 'Internal server error' 
-      : error.message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: error.stack })
-  });
-});
+// 404 handler for undefined routes
+app.use(notFoundHandler);
+
+// Global error handler (must be last)
+app.use(globalErrorHandler);
 
 // Start server
 async function startServer() {
