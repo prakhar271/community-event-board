@@ -6,6 +6,7 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 COPY tsconfig*.json ./
+COPY .pgmigraterc.json ./
 
 # Install all dependencies (including dev dependencies for build)
 RUN npm ci && npm cache clean --force
@@ -35,6 +36,10 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
+
+# Copy migrations directory and configuration
+COPY migrations/ ./migrations/
+COPY .pgmigraterc.json ./
 
 # Create uploads and logs directories with proper permissions
 RUN mkdir -p uploads logs && chown -R nodejs:nodejs uploads logs
