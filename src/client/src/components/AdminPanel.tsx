@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuthStore } from '../store/authStore';
 
 interface AdminStats {
   totalUsers: number;
@@ -22,7 +22,7 @@ interface ModerationItem {
 }
 
 export const AdminPanel: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'moderation' | 'users' | 'events' | 'analytics'>('dashboard');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [moderationItems, setModerationItems] = useState<ModerationItem[]>([]);

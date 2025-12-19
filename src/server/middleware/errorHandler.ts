@@ -91,7 +91,7 @@ export function formatErrorResponse(error: ApiError, includeStack: boolean = fal
 
 // Zod error handler
 export function handleZodError(error: ZodError): ValidationError {
-  const details = error.errors.map(err => ({
+  const details = error.issues.map((err: any) => ({
     field: err.path.join('.'),
     message: err.message,
     code: err.code

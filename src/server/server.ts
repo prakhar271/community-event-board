@@ -1,3 +1,7 @@
+// Load environment variables first
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -19,12 +23,14 @@ import reviewRoutes from './routes/reviews';
 import paymentRoutes from './routes/payments';
 import userRoutes from './routes/users';
 import webhookRoutes from './routes/webhooks';
+import cacheRoutes from './routes/cache';
 
 // Import services
 import { performanceMiddleware, errorTracker } from './middleware/analytics';
 import { backgroundJobService } from './services/BackgroundJobService';
 import { RealTimeService } from './services/RealTimeService';
 import { TokenService } from './services/TokenService';
+import { cacheService } from './services/CacheService';
 import { globalErrorHandler, notFoundHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -95,6 +101,7 @@ app.use('/api/registrations', registrationRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/cache', cacheRoutes);
 
 // Webhook routes (no auth required)
 app.use('/webhooks', webhookRoutes);
@@ -113,6 +120,9 @@ async function startServer() {
   try {
     // Initialize database connections
     await initializeDatabase();
+    
+    // Initialize cache service
+    await cacheService.initialize();
     
     // Initialize background jobs
     console.log('🔄 Starting background jobs...');

@@ -17,6 +17,7 @@ import { ContactPage } from './pages/ContactPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
+import { AdminPanel } from './components/AdminPanel';
 import { useAuthStore } from './store/authStore';
 
 const queryClient = new QueryClient({
@@ -60,6 +61,14 @@ function App() {
                 element={
                   <ProtectedRoute requireOrganizer>
                     <CreateEventPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <AdminPanel />
                   </ProtectedRoute>
                 }
               />

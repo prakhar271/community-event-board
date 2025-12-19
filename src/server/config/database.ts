@@ -28,12 +28,12 @@ export const db = new Pool(dbConfig);
 const redisUrl = process.env.REDIS_URL;
 let redis: any = null;
 
+// Create Redis client but don't connect yet
 if (redisUrl && redisUrl !== 'undefined' && redisUrl.startsWith('redis://')) {
-  // Only create Redis client if we have a valid URL
   redis = createClient({ url: redisUrl });
   
   redis.on('error', (err: Error) => {
-    console.error('Redis Client Error', err);
+    console.error('Redis Client Error:', err.message);
   });
 
   redis.on('connect', () => {
@@ -44,23 +44,18 @@ if (redisUrl && redisUrl !== 'undefined' && redisUrl.startsWith('redis://')) {
     console.log('✅ Redis client ready');
   });
 } else if (process.env.NODE_ENV === 'development') {
-  // Only try localhost in development
-  try {
-    redis = createClient({ url: 'redis://localhost:6379' });
-    
-    redis.on('error', (err: Error) => {
-      console.warn('Redis development error (safe to ignore):', err);
-    });
+  // Try localhost in development
+  redis = createClient({ url: 'redis://localhost:6379' });
+  
+  redis.on('error', (err: Error) => {
+    console.warn('⚠️ Redis error:', err.message);
+  });
 
-    redis.on('connect', () => {
-      console.log('✅ Connected to Redis (development)');
-    });
-  } catch (error) {
-    console.warn('⚠️ Redis not available in development');
-    redis = null;
-  }
+  redis.on('connect', () => {
+    console.log('✅ Connected to Redis (development)');
+  });
 } else {
-  console.log('⚠️ Redis not configured - running without cache');
+  console.log('ℹ️ Redis not configured - running without cache');
   redis = null;
 }
 
@@ -84,11 +79,16 @@ export async function initializeDatabase(): Promise<void> {
     // Try to connect to Redis only if client exists
     if (redis) {
       try {
-        await redis.connect();
-        console.log('✅ Connected to Redis');
+        if (!redis.isOpen) {
+          await redis.connect();
+          console.log('✅ Redis connected successfully');
+        } else {
+          console.log('✅ Redis already connected');
+        }
       } catch (redisError) {
-        console.warn('⚠️ Redis connection failed:', redisError);
-        console.warn('⚠️ Continuing without Redis');
+        console.warn('⚠️ Redis connection failed:', (redisError as Error).message);
+        console.warn('⚠️ Continuing without Redis cache');
+        // Don't set redis to null, let CacheService handle fallback
       }
     } else {
       console.log('ℹ️ Redis not configured - continuing without cache');

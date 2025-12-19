@@ -7,11 +7,11 @@ const envSchema = z.object({
   PORT: z.string().transform(Number).default(() => 3000),
   
   // Database
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().optional(),
   
   // Authentication
-  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters').default('development-jwt-secret-key-change-in-production-32-chars-minimum'),
   JWT_EXPIRES_IN: z.string().default('7d'),
   BCRYPT_ROUNDS: z.string().transform(Number).default(() => 12),
   

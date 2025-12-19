@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { Request, Response } from 'express';
+import { cacheService } from '../services/CacheService';
 
 // Rate limiting configurations for different endpoint types
 export const rateLimitConfigs = {
@@ -166,11 +167,31 @@ export function skipRateLimit(req: Request): boolean {
 
 // Enhanced rate limiting with Redis (for production)
 export function createRedisRateLimit(config: any) {
-  // This would use Redis for distributed rate limiting
-  // For now, return the basic rate limiter
   return rateLimit({
     ...config,
-    skip: skipRateLimit
+    skip: skipRateLimit,
+    store: {
+      // Custom Redis store implementation
+      incr: async (key: string) => {
+        try {
+          const count = await cacheService.incrementRateLimit(key, config.windowMs);
+          return {
+            totalHits: count,
+            resetTime: new Date(Date.now() + config.windowMs)
+          };
+        } catch (error) {
+          console.error('Redis rate limit error:', error);
+          // Fallback to allowing the request
+          return { totalHits: 1, resetTime: new Date(Date.now() + config.windowMs) };
+        }
+      },
+      decrement: async (key: string) => {
+        // Redis handles expiry automatically, so we don't need to decrement
+      },
+      resetKey: async (key: string) => {
+        await cacheService.delete(key);
+      }
+    }
   });
 }
 
