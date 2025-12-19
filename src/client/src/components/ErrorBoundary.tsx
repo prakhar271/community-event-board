@@ -1,5 +1,14 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 
+// Type declaration for Sentry
+declare global {
+  interface Window {
+    Sentry?: {
+      captureException: (error: Error, context?: any) => void;
+    };
+  }
+}
+
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
@@ -12,7 +21,7 @@ interface State {
 
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
-    hasError: false
+    hasError: false,
   };
 
   public static getDerivedStateFromError(error: Error): State {
@@ -21,15 +30,15 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
+
     // Send error to monitoring service (Sentry)
     if (window.Sentry) {
       window.Sentry.captureException(error, {
         contexts: {
           react: {
-            componentStack: errorInfo.componentStack
-          }
-        }
+            componentStack: errorInfo.componentStack,
+          },
+        },
       });
     }
   }
@@ -51,13 +60,13 @@ export class ErrorBoundary extends Component<Props, State> {
               <pre>{this.state.error?.stack}</pre>
             </details>
             <div className="error-actions">
-              <button 
+              <button
                 onClick={() => window.location.reload()}
                 className="btn-primary"
               >
                 Reload Page
               </button>
-              <button 
+              <button
                 onClick={() => this.setState({ hasError: false })}
                 className="btn-secondary"
               >
@@ -91,10 +100,10 @@ export function withErrorBoundary<P extends object>(
 export function useErrorHandler() {
   return (error: Error, errorInfo?: string) => {
     console.error('Error caught by useErrorHandler:', error);
-    
+
     if (window.Sentry) {
       window.Sentry.captureException(error, {
-        extra: { errorInfo }
+        extra: { errorInfo },
       });
     }
   };
