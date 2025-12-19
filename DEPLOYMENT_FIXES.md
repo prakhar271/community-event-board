@@ -131,4 +131,35 @@ The deployment should now succeed without:
 - Permission denied errors
 - Database migration failures
 
+### 4. Database Schema Conflict Resolution
+
+**Problem**: Deployment failing with `column "category_id" does not exist` error when trying to create indexes on partially existing database schema.
+
+**Root Cause**: The database had partial schema from previous deployments, causing conflicts when trying to create indexes on columns that didn't exist in the current table structure.
+
+**Solution**: Improved schema initialization with robust error handling:
+
+- ✅ Split schema creation into individual table creation steps
+- ✅ Implemented proper dependency order (users → categories → events → registrations)
+- ✅ Added individual index creation with error handling and warnings
+- ✅ Added unique constraint on categories.name to prevent conflicts
+- ✅ Check if categories exist before inserting defaults
+- ✅ Handle partial database states gracefully with transaction rollback
+
+**Benefits**:
+
+- Handles existing databases with partial schema
+- Graceful error handling for index creation failures
+- Prevents duplicate category insertions
+- Robust transaction management
+
+## Final Status - All Issues Resolved
+
+The deployment should now succeed without:
+
+- Node.js version warnings ✅
+- Permission denied errors ✅
+- Database migration failures ✅
+- Schema conflict errors ✅
+
 All issues have been resolved and the application is ready for production deployment.
