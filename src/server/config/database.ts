@@ -141,7 +141,7 @@ async function runMigrations(): Promise<void> {
 
 // Initialize database schema with direct SQL
 async function initializeSchema(): Promise<void> {
-  const client = await pool.connect();
+  const client = await db.connect();
 
   try {
     await client.query('BEGIN');
