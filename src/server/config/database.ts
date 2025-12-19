@@ -115,33 +115,141 @@ export async function initializeDatabase(): Promise<void> {
   }
 }
 
-// Database migrations using node-pg-migrate
+// Database initialization using direct SQL
 async function runMigrations(): Promise<void> {
   try {
-    console.log('🔄 Running database migrations...');
+    console.log('🔄 Initializing database schema...');
 
-    // Import and run migrations programmatically
-    const { execSync } = require('child_process');
+    // Run initialization SQL directly
+    await initializeSchema();
 
-    // Run migrations
-    execSync('npm run migrate:up', {
-      stdio: 'inherit',
-      env: { ...process.env },
-    });
-
-    console.log('✅ Database migrations completed');
+    console.log('✅ Database schema initialized');
   } catch (error) {
-    console.error('❌ Migration failed:', error);
+    console.error('❌ Schema initialization failed:', error);
 
     // In development, warn but don't crash
     if (process.env.NODE_ENV === 'development') {
       console.warn(
-        '⚠️  Migration failed in development mode. Some features may not work.'
+        '⚠️  Schema initialization failed in development mode. Some features may not work.'
       );
       return;
     }
 
     throw error;
+  }
+}
+
+// Initialize database schema with direct SQL
+async function initializeSchema(): Promise<void> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Enable UUID extension
+    await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
+
+    // Create all tables with IF NOT EXISTS
+    const schemaSQL = `
+      -- Users table
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL DEFAULT 'resident',
+        profile JSONB NOT NULL DEFAULT '{}',
+        organizer_profile JSONB,
+        is_verified BOOLEAN DEFAULT false,
+        is_active BOOLEAN DEFAULT true,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Categories table
+      CREATE TABLE IF NOT EXISTS categories (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        parent_id UUID REFERENCES categories(id),
+        icon VARCHAR(255),
+        color VARCHAR(7),
+        is_active BOOLEAN DEFAULT true,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Events table
+      CREATE TABLE IF NOT EXISTS events (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        category_id UUID REFERENCES categories(id) NOT NULL,
+        organizer_id UUID REFERENCES users(id) NOT NULL,
+        location JSONB NOT NULL,
+        schedule JSONB NOT NULL,
+        capacity INTEGER NOT NULL,
+        current_registrations INTEGER DEFAULT 0,
+        is_paid BOOLEAN DEFAULT false,
+        ticket_price INTEGER,
+        status VARCHAR(50) DEFAULT 'draft',
+        moderation_status VARCHAR(50) DEFAULT 'pending',
+        tags TEXT[] DEFAULT '{}',
+        images TEXT[] DEFAULT '{}',
+        metadata JSONB DEFAULT '{}',
+        search_vector TSVECTOR,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Registrations table
+      CREATE TABLE IF NOT EXISTS registrations (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        status VARCHAR(50) DEFAULT 'pending',
+        quantity INTEGER DEFAULT 1,
+        total_amount DECIMAL(10,2) DEFAULT 0,
+        payment_id VARCHAR(255),
+        attendee_details JSONB DEFAULT '[]',
+        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, event_id)
+      );
+
+      -- Create indexes
+      CREATE INDEX IF NOT EXISTS users_email_index ON users (email);
+      CREATE INDEX IF NOT EXISTS users_role_index ON users (role);
+      CREATE INDEX IF NOT EXISTS categories_name_index ON categories (name);
+      CREATE INDEX IF NOT EXISTS events_category_id_index ON events (category_id);
+      CREATE INDEX IF NOT EXISTS events_organizer_id_index ON events (organizer_id);
+      CREATE INDEX IF NOT EXISTS events_status_index ON events (status);
+      CREATE INDEX IF NOT EXISTS registrations_user_id_index ON registrations (user_id);
+      CREATE INDEX IF NOT EXISTS registrations_event_id_index ON registrations (event_id);
+
+      -- Insert default categories
+      INSERT INTO categories (name, description, icon, color) VALUES
+      ('Technology', 'Tech conferences, workshops, and meetups', 'laptop', '#3B82F6'),
+      ('Music', 'Concerts, festivals, and music events', 'music', '#EF4444'),
+      ('Sports', 'Sports events, tournaments, and fitness', 'trophy', '#10B981'),
+      ('Education', 'Workshops, seminars, and learning events', 'book', '#8B5CF6'),
+      ('Business', 'Networking, conferences, and business events', 'briefcase', '#F59E0B'),
+      ('Arts', 'Art exhibitions, theater, and cultural events', 'palette', '#EC4899'),
+      ('Food', 'Food festivals, cooking classes, and dining', 'utensils', '#F97316'),
+      ('Health', 'Health and wellness events', 'heart', '#06B6D4'),
+      ('Community', 'Local community gatherings and social events', 'users', '#84CC16'),
+      ('Entertainment', 'Movies, comedy shows, and entertainment', 'film', '#6366F1')
+      ON CONFLICT (name) DO NOTHING;
+    `;
+
+    await client.query(schemaSQL);
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
 }
 
