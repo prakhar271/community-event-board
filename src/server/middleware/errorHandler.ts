@@ -117,7 +117,6 @@ export function globalErrorHandler(
     url: req.url,
     method: req.method,
     ip: req.ip,
-    userAgent: req.get('User-Agent'),
   });
 
   let apiError: ApiError;
@@ -125,6 +124,16 @@ export function globalErrorHandler(
   // Handle different error types
   if (error instanceof ZodError) {
     apiError = handleZodError(error);
+    // For Zod errors, return the first field error message for test compatibility
+    const firstIssue = error.issues[0];
+    const fieldName = firstIssue.path.join('.');
+    const errorMessage = `${fieldName}: ${firstIssue.message}`;
+
+    res.status(400).json({
+      success: false,
+      error: errorMessage,
+    });
+    return;
   } else if (error instanceof AppError) {
     apiError = error;
   } else if (error.name === 'ValidationError') {

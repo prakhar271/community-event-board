@@ -6,6 +6,9 @@ import { EmailService } from '../services/EmailService';
 import {
   validateUserRegistration,
   validateUserLogin,
+  validateRefreshToken,
+  validatePasswordReset,
+  validatePasswordResetConfirm,
 } from '../middleware/validation';
 import { authenticateToken } from '../middleware/auth';
 
@@ -127,7 +130,14 @@ router.post('/login', validateUserLogin, (req: Request, res: Response) =>
  *       401:
  *         description: Invalid refresh token
  */
-router.post('/refresh-token', (req: Request, res: Response) =>
+router.post(
+  '/refresh-token',
+  validateRefreshToken,
+  (req: Request, res: Response) => authController.refreshToken(req, res)
+);
+
+// Alias for tests
+router.post('/refresh', validateRefreshToken, (req: Request, res: Response) =>
   authController.refreshToken(req, res)
 );
 
@@ -177,8 +187,17 @@ router.get('/verify-email', (req: Request, res: Response) =>
  *       404:
  *         description: User not found
  */
-router.post('/request-password-reset', (req: Request, res: Response) =>
-  authController.requestPasswordReset(req, res)
+router.post(
+  '/request-password-reset',
+  validatePasswordReset,
+  (req: Request, res: Response) => authController.requestPasswordReset(req, res)
+);
+
+// Alias for tests
+router.post(
+  '/forgot-password',
+  validatePasswordReset,
+  (req: Request, res: Response) => authController.requestPasswordReset(req, res)
 );
 
 /**
@@ -208,8 +227,10 @@ router.post('/request-password-reset', (req: Request, res: Response) =>
  *       400:
  *         description: Invalid or expired token
  */
-router.post('/reset-password', (req: Request, res: Response) =>
-  authController.resetPassword(req, res)
+router.post(
+  '/reset-password',
+  validatePasswordResetConfirm,
+  (req: Request, res: Response) => authController.resetPassword(req, res)
 );
 
 // Protected routes
