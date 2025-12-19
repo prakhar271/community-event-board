@@ -149,9 +149,10 @@ async function initializeSchema(): Promise<void> {
     // Enable UUID extension
     await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
 
-    // Create all tables with IF NOT EXISTS
-    const schemaSQL = `
-      -- Users table
+    // Create tables in correct order (dependencies first)
+
+    // 1. Users table (no dependencies)
+    await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         email VARCHAR(255) UNIQUE NOT NULL,
@@ -165,11 +166,13 @@ async function initializeSchema(): Promise<void> {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
 
-      -- Categories table
+    // 2. Categories table (self-referencing, but no external dependencies)
+    await client.query(`
       CREATE TABLE IF NOT EXISTS categories (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        name VARCHAR(255) NOT NULL,
+        name VARCHAR(255) UNIQUE NOT NULL,
         description TEXT,
         parent_id UUID REFERENCES categories(id),
         icon VARCHAR(255),
@@ -179,8 +182,10 @@ async function initializeSchema(): Promise<void> {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
 
-      -- Events table
+    // 3. Events table (depends on users and categories)
+    await client.query(`
       CREATE TABLE IF NOT EXISTS events (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         title VARCHAR(255) NOT NULL,
@@ -202,8 +207,10 @@ async function initializeSchema(): Promise<void> {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
 
-      -- Registrations table
+    // 4. Registrations table (depends on users and events)
+    await client.query(`
       CREATE TABLE IF NOT EXISTS registrations (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -217,33 +224,105 @@ async function initializeSchema(): Promise<void> {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(user_id, event_id)
       );
+    `);
 
-      -- Create indexes
-      CREATE INDEX IF NOT EXISTS users_email_index ON users (email);
-      CREATE INDEX IF NOT EXISTS users_role_index ON users (role);
-      CREATE INDEX IF NOT EXISTS categories_name_index ON categories (name);
-      CREATE INDEX IF NOT EXISTS events_category_id_index ON events (category_id);
-      CREATE INDEX IF NOT EXISTS events_organizer_id_index ON events (organizer_id);
-      CREATE INDEX IF NOT EXISTS events_status_index ON events (status);
-      CREATE INDEX IF NOT EXISTS registrations_user_id_index ON registrations (user_id);
-      CREATE INDEX IF NOT EXISTS registrations_event_id_index ON registrations (event_id);
+    // Create indexes only after tables exist
+    const indexes = [
+      'CREATE INDEX IF NOT EXISTS users_email_index ON users (email);',
+      'CREATE INDEX IF NOT EXISTS users_role_index ON users (role);',
+      'CREATE INDEX IF NOT EXISTS categories_name_index ON categories (name);',
+      'CREATE INDEX IF NOT EXISTS events_category_id_index ON events (category_id);',
+      'CREATE INDEX IF NOT EXISTS events_organizer_id_index ON events (organizer_id);',
+      'CREATE INDEX IF NOT EXISTS events_status_index ON events (status);',
+      'CREATE INDEX IF NOT EXISTS registrations_user_id_index ON registrations (user_id);',
+      'CREATE INDEX IF NOT EXISTS registrations_event_id_index ON registrations (event_id);',
+    ];
 
-      -- Insert default categories
-      INSERT INTO categories (name, description, icon, color) VALUES
-      ('Technology', 'Tech conferences, workshops, and meetups', 'laptop', '#3B82F6'),
-      ('Music', 'Concerts, festivals, and music events', 'music', '#EF4444'),
-      ('Sports', 'Sports events, tournaments, and fitness', 'trophy', '#10B981'),
-      ('Education', 'Workshops, seminars, and learning events', 'book', '#8B5CF6'),
-      ('Business', 'Networking, conferences, and business events', 'briefcase', '#F59E0B'),
-      ('Arts', 'Art exhibitions, theater, and cultural events', 'palette', '#EC4899'),
-      ('Food', 'Food festivals, cooking classes, and dining', 'utensils', '#F97316'),
-      ('Health', 'Health and wellness events', 'heart', '#06B6D4'),
-      ('Community', 'Local community gatherings and social events', 'users', '#84CC16'),
-      ('Entertainment', 'Movies, comedy shows, and entertainment', 'film', '#6366F1')
-      ON CONFLICT (name) DO NOTHING;
-    `;
+    for (const indexSQL of indexes) {
+      try {
+        await client.query(indexSQL);
+      } catch (indexError) {
+        console.warn(
+          `⚠️ Index creation warning: ${(indexError as Error).message}`
+        );
+        // Continue with other indexes even if one fails
+      }
+    }
 
-    await client.query(schemaSQL);
+    // Insert default categories (only if categories table is empty)
+    const categoriesResult = await client.query(
+      'SELECT COUNT(*) FROM categories'
+    );
+    const categoryCount = parseInt(categoriesResult.rows[0].count);
+
+    if (categoryCount === 0) {
+      const defaultCategories = [
+        [
+          'Technology',
+          'Tech conferences, workshops, and meetups',
+          'laptop',
+          '#3B82F6',
+        ],
+        ['Music', 'Concerts, festivals, and music events', 'music', '#EF4444'],
+        [
+          'Sports',
+          'Sports events, tournaments, and fitness',
+          'trophy',
+          '#10B981',
+        ],
+        [
+          'Education',
+          'Workshops, seminars, and learning events',
+          'book',
+          '#8B5CF6',
+        ],
+        [
+          'Business',
+          'Networking, conferences, and business events',
+          'briefcase',
+          '#F59E0B',
+        ],
+        [
+          'Arts',
+          'Art exhibitions, theater, and cultural events',
+          'palette',
+          '#EC4899',
+        ],
+        [
+          'Food',
+          'Food festivals, cooking classes, and dining',
+          'utensils',
+          '#F97316',
+        ],
+        ['Health', 'Health and wellness events', 'heart', '#06B6D4'],
+        [
+          'Community',
+          'Local community gatherings and social events',
+          'users',
+          '#84CC16',
+        ],
+        [
+          'Entertainment',
+          'Movies, comedy shows, and entertainment',
+          'film',
+          '#6366F1',
+        ],
+      ];
+
+      for (const [name, description, icon, color] of defaultCategories) {
+        try {
+          await client.query(
+            'INSERT INTO categories (name, description, icon, color) VALUES ($1, $2, $3, $4) ON CONFLICT (name) DO NOTHING',
+            [name, description, icon, color]
+          );
+        } catch (categoryError) {
+          console.warn(
+            `⚠️ Category insertion warning: ${(categoryError as Error).message}`
+          );
+        }
+      }
+    }
+
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
