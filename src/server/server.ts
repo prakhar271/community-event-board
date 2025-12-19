@@ -4,14 +4,23 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import {
+  configureSecurityMiddleware,
+  addSecurityHeaders,
+  sanitizeInput,
+  securityConfig,
+} from './config/security';
 import http from 'http';
 import { initializeDatabase, closeDatabase } from './config/database';
 
 // Import configuration
 import { env } from './config/env';
-import { logger, requestIdMiddleware, loggingMiddleware } from './config/logger';
+import {
+  logger,
+  requestIdMiddleware,
+  loggingMiddleware,
+} from './config/logger';
 import { initializeSentry, addSentryErrorHandler } from './config/sentry';
 import { setupSwagger } from './config/swagger';
 
@@ -51,14 +60,10 @@ app.set('tokenService', tokenService);
 // Request ID middleware (must be early)
 app.use(requestIdMiddleware);
 
-// Security middleware
-app.use(helmet());
-app.use(cors({
-  origin: env.NODE_ENV === 'production' 
-    ? ['https://community-events-frontend-m9ue.onrender.com'] 
-    : ['http://localhost:3001', 'http://localhost:3000'],
-  credentials: true
-}));
+// Enhanced security middleware
+configureSecurityMiddleware(app);
+addSecurityHeaders(app);
+app.use(cors(securityConfig.cors));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -66,14 +71,22 @@ const limiter = rateLimit({
   max: env.RATE_LIMIT_MAX_REQUESTS,
   message: {
     success: false,
-    error: 'Too many requests from this IP, please try again later.'
-  }
+    error: 'Too many requests from this IP, please try again later.',
+  },
 });
 app.use(limiter);
 
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parsing middleware with security limits
+app.use(express.json({ limit: securityConfig.requestLimits.json }));
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: securityConfig.requestLimits.urlencoded,
+  })
+);
+
+// Input sanitization
+sanitizeInput(app);
 
 // Logging middleware
 app.use(loggingMiddleware);
@@ -90,7 +103,7 @@ app.get('/health', (_req: express.Request, res: express.Response) => {
     success: true,
     message: 'Community Event Board API is running',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '1.0.0',
   });
 });
 
@@ -120,26 +133,28 @@ async function startServer() {
   try {
     // Initialize database connections
     await initializeDatabase();
-    
+
     // Initialize cache service
     await cacheService.initialize();
-    
+
     // Initialize background jobs
     console.log('🔄 Starting background jobs...');
     backgroundJobService.initializeJobs({
       eventService: null, // Will be initialized when services are ready
-      emailService: null
+      emailService: null,
     });
-    
+
     // Start HTTP server
     server.listen(PORT, () => {
       logger.info('Server started successfully', {
         port: PORT,
         environment: env.NODE_ENV,
-        healthCheck: `http://localhost:${PORT}/health`
+        healthCheck: `http://localhost:${PORT}/health`,
       });
-      
-      console.log(`🚀 Community Event Board API server running on port ${PORT}`);
+
+      console.log(
+        `🚀 Community Event Board API server running on port ${PORT}`
+      );
       console.log(`📊 Health check: http://localhost:${PORT}/health`);
       console.log(`🌍 Environment: ${env.NODE_ENV}`);
       console.log(`⚡ Real-time: Socket.IO enabled`);
@@ -150,10 +165,10 @@ async function startServer() {
     // Graceful shutdown
     const gracefulShutdown = async (signal: string) => {
       console.log(`\n${signal} received. Starting graceful shutdown...`);
-      
+
       server.close(async () => {
         console.log('HTTP server closed');
-        
+
         try {
           await closeDatabase();
           console.log('Database connections closed');
@@ -167,7 +182,6 @@ async function startServer() {
 
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-    
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
