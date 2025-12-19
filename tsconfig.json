@@ -31,12 +31,7 @@
       "@/types/*": ["types/*"]
     }
   },
-  "include": [
-    "src/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "src/client"
-  ]
+  "include": ["src/**/*", "src/server/types/**/*"],
+  "typeRoots": ["node_modules/@types", "src/server/types"],
+  "exclude": ["node_modules", "dist", "src/client"]
 }

@@ -4,22 +4,43 @@ import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import { CalendarIcon } from '@heroicons/react/24/outline';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { userRegistrationSchema } from '../../../shared/validation/schemas';
+import { UserRole } from '../../../shared/types';
 
-interface RegisterForm {
-  name: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-  role: 'resident' | 'organizer';
-  agreeToTerms: boolean;
-}
+// Create a new schema based on the shared one but with required role
+const registerFormSchema = z
+  .object({
+    email: userRegistrationSchema.shape.email,
+    password: userRegistrationSchema.shape.password,
+    name: userRegistrationSchema.shape.name,
+    role: z.enum([UserRole.RESIDENT, UserRole.ORGANIZER]), // Required role field
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+    agreeToTerms: z
+      .boolean()
+      .refine(
+        (val) => val === true,
+        'You must agree to the terms and conditions'
+      ),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+type RegisterForm = z.infer<typeof registerFormSchema>;
 
 export const RegisterPage: React.FC = () => {
-  const { register, handleSubmit, watch, formState: { errors, isSubmitting } } = useForm<RegisterForm>();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<RegisterForm>({
+    resolver: zodResolver(registerFormSchema),
+  });
   const { register: registerUser } = useAuthStore();
   const navigate = useNavigate();
-
-  const password = watch('password');
 
   const onSubmit = async (data: RegisterForm) => {
     try {
@@ -27,9 +48,11 @@ export const RegisterPage: React.FC = () => {
         name: data.name,
         email: data.email,
         password: data.password,
-        role: data.role
+        role: data.role,
       });
-      toast.success('Account created successfully! Please check your email for verification.');
+      toast.success(
+        'Account created successfully! Please check your email for verification.'
+      );
       navigate('/dashboard');
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Registration failed');
@@ -60,91 +83,86 @@ export const RegisterPage: React.FC = () => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="name"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Full Name
               </label>
               <input
-                {...register('name', {
-                  required: 'Name is required',
-                  minLength: {
-                    value: 2,
-                    message: 'Name must be at least 2 characters'
-                  }
-                })}
+                {...register('name')}
                 type="text"
                 autoComplete="name"
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="Enter your full name"
               />
               {errors.name && (
-                <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.name.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Email address
               </label>
               <input
-                {...register('email', {
-                  required: 'Email is required',
-                  pattern: {
-                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                    message: 'Invalid email address'
-                  }
-                })}
+                {...register('email')}
                 type="email"
                 autoComplete="email"
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="Enter your email"
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Password
               </label>
               <input
-                {...register('password', {
-                  required: 'Password is required',
-                  minLength: {
-                    value: 8,
-                    message: 'Password must be at least 8 characters'
-                  },
-                  pattern: {
-                    value: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
-                    message: 'Password must contain uppercase, lowercase, and number'
-                  }
-                })}
+                {...register('password')}
                 type="password"
                 autoComplete="new-password"
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="Create a password"
               />
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.password.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="confirmPassword"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Confirm Password
               </label>
               <input
-                {...register('confirmPassword', {
-                  required: 'Please confirm your password',
-                  validate: value => value === password || 'Passwords do not match'
-                })}
+                {...register('confirmPassword')}
                 type="password"
                 autoComplete="new-password"
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 placeholder="Confirm your password"
               />
               {errors.confirmPassword && (
-                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.confirmPassword.message}
+                </p>
               )}
             </div>
 
@@ -155,7 +173,7 @@ export const RegisterPage: React.FC = () => {
               <div className="space-y-2">
                 <label className="flex items-center">
                   <input
-                    {...register('role', { required: 'Please select an account type' })}
+                    {...register('role')}
                     type="radio"
                     value="resident"
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
@@ -166,7 +184,7 @@ export const RegisterPage: React.FC = () => {
                 </label>
                 <label className="flex items-center">
                   <input
-                    {...register('role', { required: 'Please select an account type' })}
+                    {...register('role')}
                     type="radio"
                     value="organizer"
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
@@ -177,15 +195,15 @@ export const RegisterPage: React.FC = () => {
                 </label>
               </div>
               {errors.role && (
-                <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.role.message}
+                </p>
               )}
             </div>
 
             <div className="flex items-center">
               <input
-                {...register('agreeToTerms', {
-                  required: 'You must agree to the terms and conditions'
-                })}
+                {...register('agreeToTerms')}
                 type="checkbox"
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
@@ -195,13 +213,18 @@ export const RegisterPage: React.FC = () => {
                   Terms and Conditions
                 </Link>{' '}
                 and{' '}
-                <Link to="/privacy" className="text-blue-600 hover:text-blue-500">
+                <Link
+                  to="/privacy"
+                  className="text-blue-600 hover:text-blue-500"
+                >
                   Privacy Policy
                 </Link>
               </label>
             </div>
             {errors.agreeToTerms && (
-              <p className="mt-1 text-sm text-red-600">{errors.agreeToTerms.message}</p>
+              <p className="mt-1 text-sm text-red-600">
+                {errors.agreeToTerms.message}
+              </p>
             )}
           </div>
 

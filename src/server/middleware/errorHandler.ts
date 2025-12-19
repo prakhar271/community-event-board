@@ -68,14 +68,17 @@ export class RateLimitError extends AppError {
 }
 
 // Error response formatter
-export function formatErrorResponse(error: ApiError, includeStack: boolean = false) {
+export function formatErrorResponse(
+  error: ApiError,
+  includeStack: boolean = false
+) {
   const response: any = {
     success: false,
     error: {
       message: error.message,
       code: error.code || 'INTERNAL_ERROR',
-      statusCode: error.statusCode || 500
-    }
+      statusCode: error.statusCode || 500,
+    },
   };
 
   if (error.details) {
@@ -94,7 +97,7 @@ export function handleZodError(error: ZodError): ValidationError {
   const details = error.issues.map((err: any) => ({
     field: err.path.join('.'),
     message: err.message,
-    code: err.code
+    code: err.code,
   }));
 
   return new ValidationError('Validation failed', details);
@@ -105,7 +108,7 @@ export function globalErrorHandler(
   error: any,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void {
   // Log error
   logger.error('Global error handler', {
@@ -114,7 +117,7 @@ export function globalErrorHandler(
     url: req.url,
     method: req.method,
     ip: req.ip,
-    userAgent: req.get('User-Agent')
+    userAgent: req.get('User-Agent'),
   });
 
   let apiError: ApiError;
@@ -129,13 +132,23 @@ export function globalErrorHandler(
   } else if (error.name === 'CastError') {
     apiError = new ValidationError('Invalid ID format');
   } else if (error.code === 'ECONNREFUSED') {
-    apiError = new AppError('Service temporarily unavailable', 503, 'SERVICE_UNAVAILABLE');
+    apiError = new AppError(
+      'Service temporarily unavailable',
+      503,
+      'SERVICE_UNAVAILABLE'
+    );
   } else if (error.code === 'ENOTFOUND') {
-    apiError = new AppError('External service not found', 502, 'EXTERNAL_SERVICE_ERROR');
+    apiError = new AppError(
+      'External service not found',
+      502,
+      'EXTERNAL_SERVICE_ERROR'
+    );
   } else {
     // Unknown error
     apiError = new AppError(
-      process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message,
+      process.env.NODE_ENV === 'production'
+        ? 'Internal server error'
+        : error.message,
       500,
       'INTERNAL_ERROR'
     );
@@ -156,7 +169,7 @@ export function asyncHandler(fn: Function) {
 }
 
 // 404 handler
-export function notFoundHandler(req: Request, res: Response): void {
+export function notFoundHandler(_req: Request, res: Response): void {
   const error = new NotFoundError('Route');
   const errorResponse = formatErrorResponse(error);
   res.status(404).json(errorResponse);

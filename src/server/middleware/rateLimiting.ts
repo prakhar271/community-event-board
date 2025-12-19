@@ -10,15 +10,16 @@ export const rateLimitConfigs = {
     max: 5, // 5 attempts per window
     message: {
       success: false,
-      error: 'Too many authentication attempts. Please try again in 15 minutes.',
-      code: 'AUTH_RATE_LIMIT_EXCEEDED'
+      error:
+        'Too many authentication attempts. Please try again in 15 minutes.',
+      code: 'AUTH_RATE_LIMIT_EXCEEDED',
     },
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req: Request) => {
       // Use IP + user agent for more specific rate limiting
       return `${req.ip}-${req.get('User-Agent')}`;
-    }
+    },
   }),
 
   // Password reset - very strict
@@ -28,8 +29,8 @@ export const rateLimitConfigs = {
     message: {
       success: false,
       error: 'Too many password reset attempts. Please try again in 1 hour.',
-      code: 'PASSWORD_RESET_RATE_LIMIT_EXCEEDED'
-    }
+      code: 'PASSWORD_RESET_RATE_LIMIT_EXCEEDED',
+    },
   }),
 
   // Event creation - moderate limits
@@ -39,12 +40,12 @@ export const rateLimitConfigs = {
     message: {
       success: false,
       error: 'Too many events created. Please try again later.',
-      code: 'EVENT_CREATION_RATE_LIMIT_EXCEEDED'
+      code: 'EVENT_CREATION_RATE_LIMIT_EXCEEDED',
     },
     keyGenerator: (req: Request) => {
       // Rate limit per user for authenticated endpoints
-      return req.user?.id || req.ip;
-    }
+      return req.user?.userId || req.ip || 'anonymous';
+    },
   }),
 
   // Registration endpoints - moderate limits
@@ -54,8 +55,8 @@ export const rateLimitConfigs = {
     message: {
       success: false,
       error: 'Too many registration attempts. Please try again in 10 minutes.',
-      code: 'REGISTRATION_RATE_LIMIT_EXCEEDED'
-    }
+      code: 'REGISTRATION_RATE_LIMIT_EXCEEDED',
+    },
   }),
 
   // Search endpoints - lenient limits
@@ -65,8 +66,8 @@ export const rateLimitConfigs = {
     message: {
       success: false,
       error: 'Too many search requests. Please slow down.',
-      code: 'SEARCH_RATE_LIMIT_EXCEEDED'
-    }
+      code: 'SEARCH_RATE_LIMIT_EXCEEDED',
+    },
   }),
 
   // File upload - strict limits
@@ -76,8 +77,8 @@ export const rateLimitConfigs = {
     message: {
       success: false,
       error: 'Too many file uploads. Please try again in 15 minutes.',
-      code: 'UPLOAD_RATE_LIMIT_EXCEEDED'
-    }
+      code: 'UPLOAD_RATE_LIMIT_EXCEEDED',
+    },
   }),
 
   // Payment endpoints - very strict
@@ -87,8 +88,8 @@ export const rateLimitConfigs = {
     message: {
       success: false,
       error: 'Too many payment attempts. Please try again in 1 hour.',
-      code: 'PAYMENT_RATE_LIMIT_EXCEEDED'
-    }
+      code: 'PAYMENT_RATE_LIMIT_EXCEEDED',
+    },
   }),
 
   // API documentation - lenient
@@ -98,8 +99,8 @@ export const rateLimitConfigs = {
     message: {
       success: false,
       error: 'Too many documentation requests.',
-      code: 'DOCS_RATE_LIMIT_EXCEEDED'
-    }
+      code: 'DOCS_RATE_LIMIT_EXCEEDED',
+    },
   }),
 
   // General API - default limits
@@ -109,15 +110,19 @@ export const rateLimitConfigs = {
     message: {
       success: false,
       error: 'Too many requests. Please try again later.',
-      code: 'GENERAL_RATE_LIMIT_EXCEEDED'
-    }
-  })
+      code: 'GENERAL_RATE_LIMIT_EXCEEDED',
+    },
+  }),
 };
 
 // Dynamic rate limiting based on user plan
 export function createUserBasedRateLimit(
   baseLimits: { windowMs: number; max: number },
-  planMultipliers: { free: number; premium: number; pro: number } = { free: 1, premium: 2, pro: 5 }
+  planMultipliers: { free: number; premium: number; pro: number } = {
+    free: 1,
+    premium: 2,
+    pro: 5,
+  }
 ) {
   return rateLimit({
     windowMs: baseLimits.windowMs,
@@ -126,8 +131,9 @@ export function createUserBasedRateLimit(
       if (!user) return baseLimits.max;
 
       const plan = user.organizerProfile?.currentPlan || 'free';
-      const multiplier = planMultipliers[plan as keyof typeof planMultipliers] || 1;
-      
+      const multiplier =
+        planMultipliers[plan as keyof typeof planMultipliers] || 1;
+
       return Math.floor(baseLimits.max * multiplier);
     },
     keyGenerator: (req: Request) => {
@@ -137,14 +143,14 @@ export function createUserBasedRateLimit(
     message: (req: Request) => {
       const user = req.user as any;
       const plan = user?.organizerProfile?.currentPlan || 'free';
-      
+
       return {
         success: false,
         error: `Rate limit exceeded for ${plan} plan. Consider upgrading for higher limits.`,
         code: 'USER_RATE_LIMIT_EXCEEDED',
-        plan
+        plan,
       };
-    }
+    },
   });
 }
 
@@ -152,16 +158,16 @@ export function createUserBasedRateLimit(
 export function skipRateLimit(req: Request): boolean {
   // Skip for health checks
   if (req.path === '/health') return true;
-  
+
   // Skip for webhooks (they have their own validation)
   if (req.path.startsWith('/webhooks')) return true;
-  
+
   // Skip for admin users in development
   if (process.env.NODE_ENV === 'development') {
     const user = req.user as any;
     if (user?.role === 'admin') return true;
   }
-  
+
   return false;
 }
 
@@ -174,41 +180,53 @@ export function createRedisRateLimit(config: any) {
       // Custom Redis store implementation
       incr: async (key: string) => {
         try {
-          const count = await cacheService.incrementRateLimit(key, config.windowMs);
+          const count = await cacheService.incrementRateLimit(
+            key,
+            config.windowMs
+          );
           return {
             totalHits: count,
-            resetTime: new Date(Date.now() + config.windowMs)
+            resetTime: new Date(Date.now() + config.windowMs),
           };
         } catch (error) {
           console.error('Redis rate limit error:', error);
           // Fallback to allowing the request
-          return { totalHits: 1, resetTime: new Date(Date.now() + config.windowMs) };
+          return {
+            totalHits: 1,
+            resetTime: new Date(Date.now() + config.windowMs),
+          };
         }
       },
-      decrement: async (key: string) => {
+      decrement: async (_key: string) => {
         // Redis handles expiry automatically, so we don't need to decrement
       },
       resetKey: async (key: string) => {
         await cacheService.delete(key);
-      }
-    }
+      },
+    },
   });
 }
 
 // Rate limit middleware factory
 export function createRateLimit(type: keyof typeof rateLimitConfigs) {
   const config = rateLimitConfigs[type];
-  
+
   return rateLimit({
     ...config,
     skip: skipRateLimit,
-    onLimitReached: (req: Request, res: Response) => {
+    handler: (req: Request, res: Response) => {
       console.warn(`Rate limit exceeded for ${type}`, {
         ip: req.ip,
         userAgent: req.get('User-Agent'),
         path: req.path,
-        method: req.method
+        method: req.method,
       });
-    }
+
+      res.status(429).json({
+        success: false,
+        error: 'Too many requests. Please try again later.',
+        code: 'RATE_LIMIT_EXCEEDED',
+      });
+    },
   });
 }

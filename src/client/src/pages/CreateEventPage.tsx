@@ -2,33 +2,65 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from 'react-query';
 import { useForm } from 'react-hook-form';
-import { CalendarIcon, MapPinIcon, CurrencyRupeeIcon } from '@heroicons/react/24/outline';
+import {
+  CalendarIcon,
+  MapPinIcon,
+  CurrencyRupeeIcon,
+} from '@heroicons/react/24/outline';
 import { eventsApi } from '../services/api';
 import toast from 'react-hot-toast';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
-interface EventFormData {
-  title: string;
-  description: string;
-  category: string;
-  location: {
-    address: string;
-    venue?: string;
-    city: string;
-    state: string;
-    country: string;
-  };
-  schedule: {
-    startDate: string;
-    endDate: string;
-    timezone: string;
-  };
-  capacity?: number;
-  registrationDeadline?: string;
-  isPaid: boolean;
-  ticketPrice?: number;
-  requirements?: string[];
-  tags?: string[];
-}
+// Frontend-specific event form schema
+const eventFormSchema = z
+  .object({
+    title: z
+      .string()
+      .min(3, 'Title must be at least 3 characters')
+      .max(200, 'Title must be less than 200 characters'),
+    description: z
+      .string()
+      .min(10, 'Description must be at least 10 characters')
+      .max(5000, 'Description must be less than 5000 characters'),
+    category: z.string().min(1, 'Category is required'),
+    location: z.object({
+      address: z.string().min(3, 'Address is required'),
+      venue: z.string().optional(),
+      city: z.string().min(1, 'City is required'),
+      state: z.string().min(1, 'State is required'),
+      country: z.string().min(1, 'Country is required'),
+    }),
+    schedule: z.object({
+      startDate: z.string().min(1, 'Start date is required'),
+      endDate: z.string().min(1, 'End date is required'),
+      timezone: z.string().default('Asia/Kolkata'),
+    }),
+    capacity: z.number().int().min(1).optional(),
+    registrationDeadline: z.string().optional(),
+    isPaid: z.boolean().default(false),
+    ticketPrice: z.number().min(1).optional(),
+    requirements: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
+  })
+  .refine(
+    (data) =>
+      new Date(data.schedule.endDate) > new Date(data.schedule.startDate),
+    {
+      message: 'End date must be after start date',
+      path: ['schedule', 'endDate'],
+    }
+  )
+  .refine(
+    (data) =>
+      !data.isPaid || (data.isPaid && data.ticketPrice && data.ticketPrice > 0),
+    {
+      message: 'Paid events must have a ticket price greater than 0',
+      path: ['ticketPrice'],
+    }
+  );
+
+type EventFormData = z.infer<typeof eventFormSchema>;
 
 const categories = [
   'cultural',
@@ -40,7 +72,7 @@ const categories = [
   'health',
   'arts',
   'music',
-  'food'
+  'food',
 ];
 
 export const CreateEventPage: React.FC = () => {
@@ -50,16 +82,22 @@ export const CreateEventPage: React.FC = () => {
   const [newRequirement, setNewRequirement] = useState('');
   const [newTag, setNewTag] = useState('');
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<EventFormData>({
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<EventFormData>({
+    resolver: zodResolver(eventFormSchema),
     defaultValues: {
       isPaid: false,
       schedule: {
-        timezone: 'Asia/Kolkata'
+        timezone: 'Asia/Kolkata',
       },
       location: {
-        country: 'India'
-      }
-    }
+        country: 'India',
+      },
+    },
   });
 
   const isPaid = watch('isPaid');
@@ -73,7 +111,7 @@ export const CreateEventPage: React.FC = () => {
       },
       onError: (error: any) => {
         toast.error(error.response?.data?.error || 'Failed to create event');
-      }
+      },
     }
   );
 
@@ -82,16 +120,24 @@ export const CreateEventPage: React.FC = () => {
       ...data,
       requirements,
       tags,
-      ticketPrice: data.isPaid && data.ticketPrice ? Math.round(data.ticketPrice * 100) : undefined, // Convert to paise
+      ticketPrice:
+        data.isPaid && data.ticketPrice
+          ? Math.round(data.ticketPrice * 100)
+          : undefined, // Convert to paise
       capacity: data.capacity || undefined,
-      registrationDeadline: data.registrationDeadline ? new Date(data.registrationDeadline).toISOString() : undefined
+      registrationDeadline: data.registrationDeadline
+        ? new Date(data.registrationDeadline).toISOString()
+        : undefined,
     };
 
     createEventMutation.mutate(eventData);
   };
 
   const addRequirement = () => {
-    if (newRequirement.trim() && !requirements.includes(newRequirement.trim())) {
+    if (
+      newRequirement.trim() &&
+      !requirements.includes(newRequirement.trim())
+    ) {
       setRequirements([...requirements, newRequirement.trim()]);
       setNewRequirement('');
     }
@@ -117,14 +163,20 @@ export const CreateEventPage: React.FC = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-lg shadow-sm p-8">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Create New Event</h1>
-            <p className="text-gray-600 mt-2">Fill in the details to create your event</p>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Create New Event
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Fill in the details to create your event
+            </p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
             {/* Basic Information */}
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Basic Information
+              </h2>
               <div className="grid grid-cols-1 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -132,11 +184,15 @@ export const CreateEventPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    {...register('title', { required: 'Event title is required', minLength: { value: 3, message: 'Title must be at least 3 characters' } })}
+                    {...register('title')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter event title"
                   />
-                  {errors.title && <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>}
+                  {errors.title && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.title.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -144,7 +200,7 @@ export const CreateEventPage: React.FC = () => {
                     Category *
                   </label>
                   <select
-                    {...register('category', { required: 'Category is required' })}
+                    {...register('category')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select a category</option>
@@ -154,7 +210,11 @@ export const CreateEventPage: React.FC = () => {
                       </option>
                     ))}
                   </select>
-                  {errors.category && <p className="mt-1 text-sm text-red-600">{errors.category.message}</p>}
+                  {errors.category && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.category.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -162,12 +222,16 @@ export const CreateEventPage: React.FC = () => {
                     Description *
                   </label>
                   <textarea
-                    {...register('description', { required: 'Description is required', minLength: { value: 10, message: 'Description must be at least 10 characters' } })}
+                    {...register('description')}
                     rows={4}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Describe your event..."
                   />
-                  {errors.description && <p className="mt-1 text-sm text-red-600">{errors.description.message}</p>}
+                  {errors.description && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.description.message}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -197,11 +261,15 @@ export const CreateEventPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    {...register('location.address', { required: 'Address is required' })}
+                    {...register('location.address')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Street address"
                   />
-                  {errors.location?.address && <p className="mt-1 text-sm text-red-600">{errors.location.address.message}</p>}
+                  {errors.location?.address && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.location.address.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -210,11 +278,15 @@ export const CreateEventPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    {...register('location.city', { required: 'City is required' })}
+                    {...register('location.city')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="City"
                   />
-                  {errors.location?.city && <p className="mt-1 text-sm text-red-600">{errors.location.city.message}</p>}
+                  {errors.location?.city && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.location.city.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -223,11 +295,15 @@ export const CreateEventPage: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    {...register('location.state', { required: 'State is required' })}
+                    {...register('location.state')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="State"
                   />
-                  {errors.location?.state && <p className="mt-1 text-sm text-red-600">{errors.location.state.message}</p>}
+                  {errors.location?.state && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.location.state.message}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -245,10 +321,14 @@ export const CreateEventPage: React.FC = () => {
                   </label>
                   <input
                     type="datetime-local"
-                    {...register('schedule.startDate', { required: 'Start date is required' })}
+                    {...register('schedule.startDate')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  {errors.schedule?.startDate && <p className="mt-1 text-sm text-red-600">{errors.schedule.startDate.message}</p>}
+                  {errors.schedule?.startDate && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.schedule.startDate.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -257,10 +337,14 @@ export const CreateEventPage: React.FC = () => {
                   </label>
                   <input
                     type="datetime-local"
-                    {...register('schedule.endDate', { required: 'End date is required' })}
+                    {...register('schedule.endDate')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  {errors.schedule?.endDate && <p className="mt-1 text-sm text-red-600">{errors.schedule.endDate.message}</p>}
+                  {errors.schedule?.endDate && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.schedule.endDate.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -280,11 +364,15 @@ export const CreateEventPage: React.FC = () => {
                   </label>
                   <input
                     type="number"
-                    {...register('capacity', { min: { value: 1, message: 'Capacity must be at least 1' } })}
+                    {...register('capacity', { valueAsNumber: true })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Leave empty for unlimited"
                   />
-                  {errors.capacity && <p className="mt-1 text-sm text-red-600">{errors.capacity.message}</p>}
+                  {errors.capacity && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.capacity.message}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -316,14 +404,15 @@ export const CreateEventPage: React.FC = () => {
                       type="number"
                       step="0.01"
                       min="1"
-                      {...register('ticketPrice', { 
-                        required: isPaid ? 'Ticket price is required for paid events' : false,
-                        min: { value: 1, message: 'Minimum price is ₹1' }
-                      })}
+                      {...register('ticketPrice', { valueAsNumber: true })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="0.00"
                     />
-                    {errors.ticketPrice && <p className="mt-1 text-sm text-red-600">{errors.ticketPrice.message}</p>}
+                    {errors.ticketPrice && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.ticketPrice.message}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -331,7 +420,9 @@ export const CreateEventPage: React.FC = () => {
 
             {/* Requirements */}
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Requirements</h2>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                Requirements
+              </h2>
               <div className="space-y-4">
                 <div className="flex gap-2">
                   <input
@@ -340,7 +431,10 @@ export const CreateEventPage: React.FC = () => {
                     onChange={(e) => setNewRequirement(e.target.value)}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Add a requirement..."
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addRequirement())}
+                    onKeyPress={(e) =>
+                      e.key === 'Enter' &&
+                      (e.preventDefault(), addRequirement())
+                    }
                   />
                   <button
                     type="button"
@@ -383,7 +477,9 @@ export const CreateEventPage: React.FC = () => {
                     onChange={(e) => setNewTag(e.target.value)}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Add a tag..."
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                    onKeyPress={(e) =>
+                      e.key === 'Enter' && (e.preventDefault(), addTag())
+                    }
                   />
                   <button
                     type="button"

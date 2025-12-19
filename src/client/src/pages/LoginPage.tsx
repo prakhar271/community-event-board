@@ -4,21 +4,26 @@ import { useForm } from 'react-hook-form';
 import { useAuthStore } from '../store/authStore';
 import toast from 'react-hot-toast';
 import { CalendarIcon } from '@heroicons/react/24/outline';
-
-interface LoginForm {
-  email: string;
-  password: string;
-}
+import {
+  validationResolvers,
+  type UserLoginInput,
+} from '../hooks/useValidation';
 
 export const LoginPage: React.FC = () => {
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<UserLoginInput>({
+    resolver: validationResolvers.login,
+  });
   const { login } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
 
   const from = (location.state as any)?.from?.pathname || '/dashboard';
 
-  const onSubmit = async (data: LoginForm) => {
+  const onSubmit = async (data: UserLoginInput) => {
     try {
       await login(data.email, data.password);
       toast.success('Welcome back!');
@@ -52,46 +57,44 @@ export const LoginPage: React.FC = () => {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Email address
               </label>
               <input
-                {...register('email', {
-                  required: 'Email is required',
-                  pattern: {
-                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                    message: 'Invalid email address'
-                  }
-                })}
+                {...register('email')}
                 type="email"
                 autoComplete="email"
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Enter your email"
               />
               {errors.email && (
-                <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.email.message}
+                </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Password
               </label>
               <input
-                {...register('password', {
-                  required: 'Password is required',
-                  minLength: {
-                    value: 8,
-                    message: 'Password must be at least 8 characters'
-                  }
-                })}
+                {...register('password')}
                 type="password"
                 autoComplete="current-password"
                 className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Enter your password"
               />
               {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.password.message}
+                </p>
               )}
             </div>
           </div>
