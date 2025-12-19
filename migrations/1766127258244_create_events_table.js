@@ -3,104 +3,43 @@
 exports.shorthands = undefined;
 
 exports.up = pgm => {
-  // Create events table
-  pgm.createTable('events', {
-    id: {
-      type: 'uuid',
-      primaryKey: true,
-      default: pgm.func('uuid_generate_v4()')
-    },
-    title: {
-      type: 'varchar(255)',
-      notNull: true
-    },
-    description: {
-      type: 'text',
-      notNull: true
-    },
-    category_id: {
-      type: 'uuid',
-      references: 'categories(id)',
-      notNull: true
-    },
-    organizer_id: {
-      type: 'uuid',
-      references: 'users(id)',
-      notNull: true
-    },
-    location: {
-      type: 'jsonb',
-      notNull: true
-    },
-    schedule: {
-      type: 'jsonb',
-      notNull: true
-    },
-    capacity: {
-      type: 'integer',
-      notNull: true
-    },
-    current_registrations: {
-      type: 'integer',
-      default: 0
-    },
-    is_paid: {
-      type: 'boolean',
-      default: false
-    },
-    ticket_price: {
-      type: 'integer'
-    },
-    status: {
-      type: 'varchar(50)',
-      default: 'draft'
-    },
-    moderation_status: {
-      type: 'varchar(50)',
-      default: 'pending'
-    },
-    tags: {
-      type: 'text[]',
-      default: '{}'
-    },
-    images: {
-      type: 'text[]',
-      default: '{}'
-    },
-    metadata: {
-      type: 'jsonb',
-      default: '{}'
-    },
-    created_at: {
-      type: 'timestamp',
-      default: pgm.func('CURRENT_TIMESTAMP')
-    },
-    updated_at: {
-      type: 'timestamp',
-      default: pgm.func('CURRENT_TIMESTAMP')
-    }
-  });
+  // Create events table with IF NOT EXISTS
+  pgm.sql(`
+    CREATE TABLE IF NOT EXISTS events (
+      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      title VARCHAR(255) NOT NULL,
+      description TEXT NOT NULL,
+      category_id UUID REFERENCES categories(id) NOT NULL,
+      organizer_id UUID REFERENCES users(id) NOT NULL,
+      location JSONB NOT NULL,
+      schedule JSONB NOT NULL,
+      capacity INTEGER NOT NULL,
+      current_registrations INTEGER DEFAULT 0,
+      is_paid BOOLEAN DEFAULT false,
+      ticket_price INTEGER,
+      status VARCHAR(50) DEFAULT 'draft',
+      moderation_status VARCHAR(50) DEFAULT 'pending',
+      tags TEXT[] DEFAULT '{}',
+      images TEXT[] DEFAULT '{}',
+      metadata JSONB DEFAULT '{}',
+      search_vector TSVECTOR,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 
-  // Create indexes
-  pgm.createIndex('events', 'title');
-  pgm.createIndex('events', 'category_id');
-  pgm.createIndex('events', 'organizer_id');
-  pgm.createIndex('events', 'status');
-  pgm.createIndex('events', 'moderation_status');
-  pgm.createIndex('events', 'is_paid');
-  pgm.createIndex('events', 'created_at');
-  pgm.createIndex('events', 'tags', { method: 'gin' });
+  // Create indexes if they don't exist
+  pgm.sql('CREATE INDEX IF NOT EXISTS events_title_index ON events (title);');
+  pgm.sql('CREATE INDEX IF NOT EXISTS events_category_id_index ON events (category_id);');
+  pgm.sql('CREATE INDEX IF NOT EXISTS events_organizer_id_index ON events (organizer_id);');
+  pgm.sql('CREATE INDEX IF NOT EXISTS events_status_index ON events (status);');
+  pgm.sql('CREATE INDEX IF NOT EXISTS events_moderation_status_index ON events (moderation_status);');
+  pgm.sql('CREATE INDEX IF NOT EXISTS events_is_paid_index ON events (is_paid);');
+  pgm.sql('CREATE INDEX IF NOT EXISTS events_created_at_index ON events (created_at);');
+  pgm.sql('CREATE INDEX IF NOT EXISTS events_tags_index ON events USING gin (tags);');
+  pgm.sql('CREATE INDEX IF NOT EXISTS events_search_vector_index ON events USING gin (search_vector);');
   
-  // Full-text search index
-  pgm.addColumn('events', {
-    search_vector: {
-      type: 'tsvector'
-    }
-  });
-  
-  pgm.createIndex('events', 'search_vector', { method: 'gin' });
-  
-  // Trigger to update search vector
+  // Create function and trigger for search vector
   pgm.sql(`
     CREATE OR REPLACE FUNCTION update_events_search_vector()
     RETURNS TRIGGER AS $$
@@ -114,6 +53,7 @@ exports.up = pgm => {
     END;
     $$ LANGUAGE plpgsql;
     
+    DROP TRIGGER IF EXISTS events_search_vector_update ON events;
     CREATE TRIGGER events_search_vector_update
       BEFORE INSERT OR UPDATE ON events
       FOR EACH ROW EXECUTE FUNCTION update_events_search_vector();
